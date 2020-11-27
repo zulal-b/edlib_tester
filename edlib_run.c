@@ -60,58 +60,55 @@ char* trim_encode(char* text, size_t *size)
 /*
  * Reads the input file given in the following format: line: read \t ref
  */
-int readInput(char *in_file, char *filter_filename, char *edits_filename, int passer_count[], 
+int readInput(char *reads_file_name, char *refs_file_name, char *filter_filename, char *edits_filename, int passer_count[], 
 	int error_threshold, int read_length, int undef_flag, int *accepted, int *rejected, int *undef_count)
 {
-	FILE *inputfile = fopen(in_file, "r");
+	FILE *reads_file = fopen(reads_file_name, "r");
+	FILE *refs_file = fopen(refs_file_name, "r");
 	FILE *edits_output = fopen(edits_filename, "w");
 	FILE *filter_output = fopen(filter_filename, "w");
 	int count = 0;
 
-	if (inputfile == NULL || edits_output == NULL || filter_output == NULL){
+	if (reads_file == NULL || refs_file == NULL || edits_output == NULL || filter_output == NULL){
 		fprintf(stderr, "Error: Input file does not exist or cannot be opened.\n");
 		fprintf(stderr, "Error: OR output files cannot be generated.\n");
 		exit(1);
 	}
 	else 
 	{
-		char *line = NULL;
-		size_t line_size = 0;
+		char *read_line = NULL, *ref_line = NULL;
+		size_t read_line_size = 0, ref_line_size = 0;
 		char str_status;
 		size_t temp_read_size, temp_ref_size;
-		char *read = (char *)malloc(read_length * sizeof(char));
-		char *ref = (char *)malloc(read_length * sizeof(char));
+		char *read = (char *)malloc((read_length+1) * sizeof(char));
+		char *ref = (char *)malloc((read_length+1) * sizeof(char));
 		int line_tracer, read_l, ref_l;
 
-		while (getline(&line, &line_size, inputfile) != -1 ){
+		while (getline(&read_line, &read_line_size, reads_file) != -1 && getline(&ref_line, &ref_line_size, refs_file) != -1){
 
 			str_status = DEFINED_STR;
 			line_tracer = 0, read_l = 0, ref_l = 0;
-			while (read_l < read_length){
-				if (line[line_tracer] == UNDEF_CHAR && undef_flag){
-					str_status = UNDEFINED_STR;
-					break;
-				}
-				read[read_l] = line[line_tracer];
-				line_tracer++;
-				read_l++;
-			}
-			temp_read_size = read_l;
 
-			line_tracer++;
-			while (ref_l < read_length){
-				if (line[line_tracer] == UNDEF_CHAR && undef_flag){
-					str_status = UNDEFINED_STR;
-					break;
-				}
-				ref[ref_l] = line[line_tracer];
+			while(ref_line[line_tracer] != '\n' && ref_l < read_length){
+				ref[ref_l] = ref_line[line_tracer];
 				line_tracer++;
 				ref_l++;
 			}
 			temp_ref_size = ref_l;
+			ref[read_length] = '\0';
+
+			line_tracer = 0;
+			while(read_line[line_tracer] != '\n' && read_l < read_length){
+				read[read_l] = read_line[line_tracer];
+				line_tracer++;
+				read_l++;
+			}
+			temp_read_size = read_l;
+			read[read_length] = '\0';
+
 
 			if (str_status == UNDEFINED_STR){ // if one of the strings is undefined and undef_flag is op't for not executing edlib
-				fprintf(filter_output, "%d\n", PASS);
+			  	fprintf(filter_output, "%d\n", PASS);
 				fprintf(edits_output, "%d\n", UNDEFINED_STR_EDIT);
 				(*undef_count)++;
 				(*accepted)++;
@@ -120,14 +117,41 @@ int readInput(char *in_file, char *filter_filename, char *edits_filename, int pa
 			}
 
 			// printf("line = %s\n", line);
-			// printf("read = \t%s, %ld\n", read, temp_read_size);
+			// printf("read = \t%s, %ld, %ld\n", read, temp_read_size, strlen(read));
 			// printf("ref = \t%s, %ld, %ld\n", ref, temp_ref_size, strlen(ref));
+			// exit(1);
 
+			// CHUNK PROCESSING----------------------------------------------------------------------------------------
+			int bucket_count = read_length / 100;
+			int bucket_tracer = 0;
+			int error_count = 0;
+			while (bucket_tracer < bucket_count){
+				EdlibAlignResult result = edlibAlign(&ref[bucket_tracer * 100], 100, &read[bucket_tracer * 100], 100, 
+				edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
+				if (result.status == EDLIB_STATUS_OK) {
+					error_count += result.editDistance;
+				}
+				edlibFreeAlignResult(result);
+				bucket_tracer++;
+			}
+			fprintf(edits_output, "%d\n", error_count);
+			if (error_count <= bucket_count * error_threshold){
+				passer_count[error_count / bucket_count]++;
+				fprintf(filter_output, "%d\n", PASS);
+				(*accepted)++;
+			}
+			else{
+				fprintf(filter_output, "%d\n", REJECT);
+				(*rejected)++;
+			}
+			//-----------------------------------------------------------------------------------------------------------
+
+			// WHOLE STRING PROCESSING----------------------------------------------------------------------------------
 			// EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, edlibNewAlignConfig(error_threshold, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-			EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, 
-				edlibNewAlignConfig(error_threshold, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
+			//EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, 
+			//	edlibNewAlignConfig(error_threshold, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
 			
-			if (result.status == EDLIB_STATUS_OK) {
+			/*if (result.status == EDLIB_STATUS_OK) {
 				fprintf(edits_output, "%d\n", result.editDistance);
 				if (result.editDistance != -1){
 					passer_count[result.editDistance]++;
@@ -140,7 +164,8 @@ int readInput(char *in_file, char *filter_filename, char *edits_filename, int pa
 				}
 			}
 			// printf("%d", result.editDistance);
-			edlibFreeAlignResult(result);
+			edlibFreeAlignResult(result);*/
+			//--------------------------------------------------------------------------------------------------------------
 			
 			// printf("line = %d done\n", count);
 			count++;
@@ -151,7 +176,8 @@ int readInput(char *in_file, char *filter_filename, char *edits_filename, int pa
 		free(ref);
 	}
 
-	fclose(inputfile);
+	fclose(reads_file);
+	fclose(refs_file);
 	fclose(filter_output);
 	fclose(edits_output);
 
@@ -181,17 +207,18 @@ void destruct_2D(char **buffer, int size){
 
 int main(int argc, char* argv[])
 {
-	if(argc < 5){
+	if(argc < 6){
 		printf("MISSING ARGUMENT\n");
 		exit(0);
 	}
 
 	else 
 	{
-		char *inputfile = argv[1];
-		int undef_flag = atoi(argv[2]);
-		int read_length = atoi(argv[3]);
-		int error_threshold = atoi(argv[4]);
+		char *reads_file_name = argv[1];
+		char *refs_file_name = argv[2];
+		int undef_flag = atoi(argv[3]);
+		int read_length = atoi(argv[4]);
+		int error_threshold = atoi(argv[5]);
 		double tstart, tstop, ttime;
 		int num_reads = 0;
 		int i = 0;
@@ -225,12 +252,14 @@ int main(int argc, char* argv[])
 		}
 
 		tstart = dtime();
-		num_reads = readInput(inputfile, filter_file_name, edit_file_name, passer_count, error_threshold, 
+		num_reads = readInput(reads_file_name, refs_file_name, filter_file_name, edit_file_name, passer_count, error_threshold, 
 			read_length, undef_flag, &accepted, &rejected, &undef_count);
 		tstop = dtime();
 		i = 0;
 		while (i <= error_threshold){
-			printf("passer_count[%d] = %d\n", i, passer_count[i]);
+			if (passer_count[i] != 0){
+				printf("passer_count[%d] = %d\n", i, passer_count[i]);
+			}
 			i++;
 		}
 

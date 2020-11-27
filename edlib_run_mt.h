@@ -1,5 +1,5 @@
-#ifndef __EDLIB_RUN
-#define __EDLIB_RUN
+#ifndef __EDLIB_RUN_MT
+#define __EDLIB_RUN_MT
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,7 +11,7 @@
 
 char* trim_encode(char* text, size_t *size);
 int readInput(char *reads_file_name, char *refs_file_name, char *filter_filename, char *edits_filename, int passer_count[], 
-	int error_threshold, int read_length, int undef_flag, int *accepted, int *rejected, int *undef_count);
+	int error_threshold, int read_length, int undef_flag, int *accepted, int *rejected, int *undef_count, int numThreads);
 
 
 #endif
