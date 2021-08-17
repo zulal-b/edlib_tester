@@ -12,6 +12,7 @@
 char* trim_encode(char* text, size_t *size);
 int readInput(char *reads_file_name, char *refs_file_name, char *filter_filename, char *edits_filename, int passer_count[], 
 	int error_threshold, int read_length, int undef_flag, int *accepted, int *rejected, int *undef_count, int numThreads);
-
+int readInput_single(char *reads_file_name, char *filter_filename, char *edits_filename, int passer_count[], 
+	int error_threshold, int read_length, int undef_flag, int *accepted, int *rejected, int *undef_count, int numThreads);
 
 #endif

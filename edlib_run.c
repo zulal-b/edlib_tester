@@ -122,36 +122,36 @@ int readInput(char *reads_file_name, char *refs_file_name, char *filter_filename
 			// exit(1);
 
 			// CHUNK PROCESSING----------------------------------------------------------------------------------------
-			int bucket_count = read_length / 100;
-			int bucket_tracer = 0;
-			int error_count = 0;
-			while (bucket_tracer < bucket_count){
-				EdlibAlignResult result = edlibAlign(&ref[bucket_tracer * 100], 100, &read[bucket_tracer * 100], 100, 
-				edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
-				if (result.status == EDLIB_STATUS_OK) {
-					error_count += result.editDistance;
-				}
-				edlibFreeAlignResult(result);
-				bucket_tracer++;
-			}
-			fprintf(edits_output, "%d\n", error_count);
-			if (error_count <= bucket_count * error_threshold){
-				passer_count[error_count / bucket_count]++;
-				fprintf(filter_output, "%d\n", PASS);
-				(*accepted)++;
-			}
-			else{
-				fprintf(filter_output, "%d\n", REJECT);
-				(*rejected)++;
-			}
+			// int bucket_count = read_length / 100;
+			// int bucket_tracer = 0;
+			// int error_count = 0;
+			// while (bucket_tracer < bucket_count){
+			// 	EdlibAlignResult result = edlibAlign(&ref[bucket_tracer * 100], 100, &read[bucket_tracer * 100], 100, 
+			// 	edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
+			// 	if (result.status == EDLIB_STATUS_OK) {
+			// 		error_count += result.editDistance;
+			// 	}
+			// 	edlibFreeAlignResult(result);
+			// 	bucket_tracer++;
+			// }
+			// fprintf(edits_output, "%d\n", error_count);
+			// if (error_count <= bucket_count * error_threshold){
+			// 	passer_count[error_count / bucket_count]++;
+			// 	fprintf(filter_output, "%d\n", PASS);
+			// 	(*accepted)++;
+			// }
+			// else{
+			// 	fprintf(filter_output, "%d\n", REJECT);
+			// 	(*rejected)++;
+			// }
 			//-----------------------------------------------------------------------------------------------------------
 
 			// WHOLE STRING PROCESSING----------------------------------------------------------------------------------
 			// EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, edlibNewAlignConfig(error_threshold, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-			//EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, 
-			//	edlibNewAlignConfig(error_threshold, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
+			EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, 
+				edlibNewAlignConfig(error_threshold, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
 			
-			/*if (result.status == EDLIB_STATUS_OK) {
+			if (result.status == EDLIB_STATUS_OK) {
 				fprintf(edits_output, "%d\n", result.editDistance);
 				if (result.editDistance != -1){
 					passer_count[result.editDistance]++;
@@ -164,7 +164,7 @@ int readInput(char *reads_file_name, char *refs_file_name, char *filter_filename
 				}
 			}
 			// printf("%d", result.editDistance);
-			edlibFreeAlignResult(result);*/
+			edlibFreeAlignResult(result);
 			//--------------------------------------------------------------------------------------------------------------
 			
 			// printf("line = %d done\n", count);
