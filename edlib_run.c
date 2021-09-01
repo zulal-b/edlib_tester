@@ -58,7 +58,7 @@ char* trim_encode(char* text, size_t *size)
 }
 
 /*
- * Reads the input file given in the following format: line: read \t ref
+ * Reads the input files
  */
 int readInput(char *reads_file_name, char *refs_file_name, char *filter_filename, char *edits_filename, int passer_count[], 
 	int error_threshold, int read_length, int undef_flag, int *accepted, int *rejected, int *undef_count)

@@ -26,11 +26,12 @@
 
 #define DEVOP 3000000
 
+ #define isDef(x) (((x == 'A') || (x == 'C') || (x == 'G') || (x == 'T')) ? 1 : 0)
+
 // Global variables
 double time_io; // includes preprocessing etc. All time except for main loop
 double time_edlib;
 double time_exe; // end-to-edn time, all included
-
 
 
 double dtime()
@@ -367,6 +368,7 @@ int readInput_single(char *reads_file_name, char *filter_filename, char *edits_f
 			size_t read_line_size = 0;
 			int thread_sample_count = 0;
 			int max_sample_count = (finish_indices[thread] - start_indices[thread] + 1);
+			int read_undef;
 
 			FILE *thread_reads = fopen(reads_file_name, "r");
 			fseek(thread_reads, reads_start_pos[thread], SEEK_SET);
@@ -377,25 +379,33 @@ int readInput_single(char *reads_file_name, char *filter_filename, char *edits_f
 			while (getline(&read_line, &read_line_size, thread_reads) != -1 
 					&& thread_sample_count < max_sample_count){
 
-				if (undef_flag == 1 && strchr(read_line, 'N') != NULL){
-					(*undef_count)++;
-					filter[thread][thread_sample_count] = PASS;
-					edits[thread][thread_sample_count] = UNDEFINED_STR_EDIT;
-				}
-
-				else { 
-
-					line_tracer = 0, read_l = 0, ref_l = 0;
-					while(read_line[line_tracer] != '\t' && read_l < read_length){
-						read[read_l] = read_line[line_tracer];
-						line_tracer++;
-						read_l++;
+				read_undef = 0;
+				line_tracer = 0, read_l = 0, ref_l = 0;
+				while(read_line[line_tracer] != '\t' && read_l < read_length){
+					if (undef_flag == 1 && isDef(read_line[line_tracer]) == 0){
+						(*undef_count)++;
+						filter[thread][thread_sample_count] = PASS;
+						edits[thread][thread_sample_count] = UNDEFINED_STR_EDIT;
+						read_undef = 1;
+						break;
 					}
-					temp_read_size = read_l;
-					read[read_length] = '\0';
+					read[read_l] = read_line[line_tracer];
+					line_tracer++;
+					read_l++;
+				}
+				temp_read_size = read_l;
+				read[read_length] = '\0';
 
+				if (read_undef == 0){
 					line_tracer++;
 					while(read_line[line_tracer] != '\n' && ref_l < read_length){
+						if (undef_flag == 1 && isDef(read_line[line_tracer]) == 0){
+							(*undef_count)++;
+							filter[thread][thread_sample_count] = PASS;
+							edits[thread][thread_sample_count] = UNDEFINED_STR_EDIT;
+							read_undef = 1;
+							break;
+						}
 						ref[ref_l] = read_line[line_tracer];
 						line_tracer++;
 						ref_l++;
@@ -406,23 +416,24 @@ int readInput_single(char *reads_file_name, char *filter_filename, char *edits_f
 					//printf("read\t'%s' size = %zu\n", read, temp_read_size);
 	        		//printf("ref\t'%s' size = %zu\n", ref, temp_ref_size);
 	        		//exit(0);
-
-					// EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, edlibNewAlignConfig(error_threshold, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-					EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, 
-						edlibNewAlignConfig(error_threshold, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
-					
-					if (result.status == EDLIB_STATUS_OK) {
-						if (result.editDistance != -1){
-							filter[thread][thread_sample_count] = PASS;
+					if (undef_flag == 1 && read_undef == 0){
+						// EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, edlibNewAlignConfig(error_threshold, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+						EdlibAlignResult result = edlibAlign(ref, temp_ref_size, read, temp_read_size, 
+							edlibNewAlignConfig(error_threshold, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
+						
+						if (result.status == EDLIB_STATUS_OK) {
+							if (result.editDistance != -1){
+								filter[thread][thread_sample_count] = PASS;
+							}
+							else{
+								filter[thread][thread_sample_count] = REJECT;
+							}
+							edits[thread][thread_sample_count] = result.editDistance;
 						}
-						else{
-							filter[thread][thread_sample_count] = REJECT;
-						}
-						edits[thread][thread_sample_count] = result.editDistance;
+						edlibFreeAlignResult(result);
 					}
-					edlibFreeAlignResult(result);
 				}
-				
+					
 				// printf("line = %d done\n", count);
 				thread_sample_count++;
 
